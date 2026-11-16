@@ -5,28 +5,36 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 public final class SpearMaceScreen extends Screen {
-    public SpearMaceScreen() {
-        super(Component.literal("Killer's SpearMace Optimization"));
-    }
+    public SpearMaceScreen() { super(Component.literal("Killer's SpearMace Optimization")); }
 
-    @Override
-    protected void init() {
-        int x = this.width / 2 - 105;
-        int y = this.height / 2 - 45;
-        addRenderableWidget(Button.builder(espLabel(), b -> {
-            SpearMaceClient.setEsp(!SpearMaceClient.espEnabled);
-            b.setMessage(espLabel());
-        }).bounds(x, y, 210, 20).build());
+    @Override protected void init() {
+        int x = width / 2 - 115, y = height / 2 - 76;
+        addRenderableWidget(Button.builder(Component.literal("Block ESP: " + state(SpearMaceClient.blockEspEnabled)), b -> {
+            SpearMaceClient.blockEspEnabled = !SpearMaceClient.blockEspEnabled;
+            rebuildWidgets();
+        }).bounds(x, y, 175, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Choose Blocks..."), b ->
+            minecraft.setScreen(new SpearMaceSelector(this, true)))
+            .bounds(x + 178, y, 100, 20).build());
 
-        addRenderableWidget(Button.builder(flightLabel(), b -> {
-            SpearMaceClient.setFlight(!SpearMaceClient.flightEnabled);
-            b.setMessage(flightLabel());
-        }).bounds(x, y + 26, 210, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Tracers: " + state(SpearMaceClient.tracerEnabled)), b -> {
+            SpearMaceClient.tracerEnabled = !SpearMaceClient.tracerEnabled;
+            rebuildWidgets();
+        }).bounds(x, y + 29, 175, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Choose Entities..."), b ->
+            minecraft.setScreen(new SpearMaceSelector(this, false)))
+            .bounds(x + 178, y + 29, 100, 20).build());
+
+        addRenderableWidget(Button.builder(Component.literal("Flight: " + state(SpearMaceClient.flightEnabled)), b -> {
+            SpearMaceClient.flightEnabled = !SpearMaceClient.flightEnabled;
+            rebuildWidgets();
+        }).bounds(x, y + 58, 175, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Flight speed..."), b ->
+            minecraft.setScreen(new SpearMaceFlightScreen(this)))
+            .bounds(x + 178, y + 58, 100, 20).build());
 
         addRenderableWidget(Button.builder(Component.literal("Done"), b -> onClose())
-            .bounds(x, y + 57, 210, 20).build());
+            .bounds(x, y + 100, 278, 20).build());
     }
-
-    private Component espLabel() { return Component.literal("Entity ESP: " + (SpearMaceClient.espEnabled ? "ON" : "OFF")); }
-    private Component flightLabel() { return Component.literal("Flight: " + (SpearMaceClient.flightEnabled ? "ON" : "OFF")); }
+    private static String state(boolean enabled) { return enabled ? "ON" : "OFF"; }
 }

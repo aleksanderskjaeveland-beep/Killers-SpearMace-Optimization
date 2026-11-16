@@ -1,6 +1,7 @@
 package dev.killers.spearmace;
 
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
@@ -36,5 +37,24 @@ public final class SpearMaceScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("Done"), b -> onClose())
             .bounds(x, y + 100, 278, 20).build());
     }
+    @Override public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
+        int x = width / 2 - 115, y = height / 2 - 76;
+        if (event.button() == 1 && event.x() >= x && event.x() <= x + 278) {
+            if (event.y() >= y && event.y() <= y + 20) {
+                minecraft.setScreen(new SpearMaceSelector(this, true));
+                return true;
+            }
+            if (event.y() >= y + 29 && event.y() <= y + 49) {
+                minecraft.setScreen(new SpearMaceSelector(this, false));
+                return true;
+            }
+            if (event.y() >= y + 58 && event.y() <= y + 78) {
+                minecraft.setScreen(new SpearMaceFlightScreen(this));
+                return true;
+            }
+        }
+        return super.mouseClicked(event, doubled);
+    }
+
     private static String state(boolean enabled) { return enabled ? "ON" : "OFF"; }
 }

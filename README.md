@@ -1,19 +1,21 @@
-# Killer's SpearMace Optimization — Standalone Fabric mod
+# Killer's SpearMace Optimization
 
-Target: Minecraft Java 1.21.11, Fabric Loader 0.19.5, Java 21.
+Standalone Fabric client mod for Minecraft Java **1.21.11**, Fabric Loader **0.19.5**, and Java 21. Author: **esoria**.
 
-**This project does not use or require Meteor Client.**
+## Controls and features
 
-## Features
-- A custom menu with ESP / Flight toggles.
-- Menu key is `R` by default and can be reassigned via Options > Controls > Key Binds > Killer's SpearMace Optimization.
-- ESP applies a glowing outline to loaded living entities; limited to entities already sent to the client.
-- Flight offers local vertical movement with Jump/Shift; online servers may reject movement or disconnect you. It is not anti-cheat bypass.
+- Press **R** to open the mod menu. Rebind via **Options → Controls → Key Binds → Killer's SpearMace Optimization**.
+- **Block ESP**: toggle in the menu; right-click the row or choose *Choose Blocks* to select blocks from a searchable scrollable Minecraft item grid. Highlights matching nearby client-loaded blocks within a radius of 8 horizontal and 6 vertical blocks, refreshed every 30 game ticks.
+- **Tracers**: toggle in the menu; right-click the row or choose *Choose Entities* to select entity types from a searchable grid. Players use a player-head icon; mobs with spawn eggs use their spawn-egg icons. Only loaded entities are considered.
+- **Flight**: toggle in the menu; right-click the row or choose *Flight speed* to set horizontal and vertical speeds. Movement accelerates and decelerates smoothly rather than snapping to a fixed speed. **Space** rises and **Shift** descends.
+- Custom item-grid mod icon derived from the supplied Minecraft items image.
 
-## Build
-Install JDK 21 and Gradle 9.2+ (or use the Gradle wrapper once generated). Run `gradle build` in this folder. Find the release JAR in `build/libs/`.
+## Limitations
 
-Install the generated mod JAR along with Fabric API (1.21.11 compatible) on Fabric Loader 0.19.5. This mod does **not** need Meteor Client.
+Flight changes local movement, not server permissions. Multiplayer servers can reject flight or disconnect the player. It does not include server-side permission changes or anti-cheat bypass. This flight mode is not identical to Meteor Client's multiple flight modes.
 
-## Important
-The code has not been compiled or tested against a Minecraft runtime in this environment. API method names may require small corrections during compilation. No security/anti-cheat bypass features are included. Client-side glowing may be reset on entity updates.
+Settings are currently held in memory and reset when restarting Minecraft. The player should test the visual rendering in-game; a successful compilation does not guarantee every feature renders as intended.
+
+## Install
+
+Build using the included GitHub Actions workflow. Download the successful run's artifact, extract its ZIP, and put the normal non-`-sources` mod JAR in your Modrinth profile's `mods` folder. Fabric API compatible with 1.21.11 is required. Meteor Client is **not** required.

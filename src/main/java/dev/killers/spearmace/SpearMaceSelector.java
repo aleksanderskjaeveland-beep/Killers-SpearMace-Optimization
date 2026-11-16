@@ -1,6 +1,7 @@
 package dev.killers.spearmace;
 
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
@@ -67,7 +68,7 @@ public final class SpearMaceSelector extends Screen {
             g.fill(x, y, x + 20, y + 20, selected ? 0xAA5F39BC : 0x88333333);
             g.renderItem(icon(o), x + 2, y + 2);
             if (mouseX >= x && mouseX < x + 20 && mouseY >= y && mouseY < y + 20)
-                g.renderTooltip(font, Component.literal(nameOf(o)), mouseX, mouseY);
+                g.drawString(font, nameOf(o), 8, height - 42, 0xFFFFFF);
         }
     }
     private ItemStack icon(Object o) {
@@ -77,8 +78,9 @@ public final class SpearMaceSelector extends Screen {
         SpawnEggItem egg = SpawnEggItem.byId(type);
         return egg == null ? new ItemStack(Items.NAME_TAG) : new ItemStack(egg);
     }
-    @Override public boolean mouseClicked(double mx, double my, int button) {
-        if (button == 0) {
+    @Override public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
+        double mx = event.x(), my = event.y();
+        if (event.button() == 0) {
             int x = (int)mx - left(), y = (int)my - top();
             if (x >= 0 && y >= 0 && x < COLS * CELL && y < ROWS * CELL) {
                 int col = x / CELL, row = y / CELL, index = offset + row * COLS + col;
@@ -95,7 +97,7 @@ public final class SpearMaceSelector extends Screen {
                 }
             }
         }
-        return super.mouseClicked(mx, my, button);
+        return super.mouseClicked(event, doubled);
     }
     @Override public boolean mouseScrolled(double mx, double my, double scrollX, double scrollY) {
         int max = Math.max(0, ((visible.size() - 1) / COLS - ROWS + 1) * COLS);

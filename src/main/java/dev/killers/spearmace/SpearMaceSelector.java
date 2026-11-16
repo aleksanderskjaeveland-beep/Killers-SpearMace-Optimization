@@ -34,8 +34,16 @@ public final class SpearMaceSelector extends Screen {
         filter("");
     }
     private String nameOf(Object obj) {
-        return blocks ? BuiltInRegistries.BLOCK.getKey((Block)obj).toString()
-                      : BuiltInRegistries.ENTITY_TYPE.getKey((EntityType<?>)obj).toString();
+        String id = blocks ? BuiltInRegistries.BLOCK.getKey((Block)obj).toString()
+                           : BuiltInRegistries.ENTITY_TYPE.getKey((EntityType<?>)obj).toString();
+        String[] words = id.substring(id.indexOf(':') + 1).replace('_', ' ').split(" ");
+        StringBuilder readable = new StringBuilder();
+        for (String word : words) {
+            if (word.isEmpty()) continue;
+            if (readable.length() > 0) readable.append(' ');
+            readable.append(Character.toUpperCase(word.charAt(0))).append(word.substring(1));
+        }
+        return readable.toString();
     }
     private void filter(String term) {
         visible.clear();
@@ -67,8 +75,13 @@ public final class SpearMaceSelector extends Screen {
                 : SpearMaceClient.ENTITIES.contains((EntityType<?>)o);
             g.fill(x, y, x + 20, y + 20, selected ? 0xAA5F39BC : 0x88333333);
             g.renderItem(icon(o), x + 2, y + 2);
-            if (mouseX >= x && mouseX < x + 20 && mouseY >= y && mouseY < y + 20)
-                g.drawString(font, nameOf(o), 8, height - 42, 0xFFFFFF);
+            if (mouseX >= x && mouseX < x + 20 && mouseY >= y && mouseY < y + 20) {
+                String label = nameOf(o);
+                int labelX = Math.min(mouseX + 12, width - font.width(label) - 12);
+                int labelY = Math.min(mouseY + 14, height - 20);
+                g.fill(labelX - 3, labelY - 3, labelX + font.width(label) + 4, labelY + 12, 0xE0101019);
+                g.drawString(font, label, labelX, labelY, 0xFFFFFF);
+            }
         }
     }
     private ItemStack icon(Object o) {

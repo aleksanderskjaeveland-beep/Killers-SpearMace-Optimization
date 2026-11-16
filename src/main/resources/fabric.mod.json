@@ -3,7 +3,7 @@
   "id": "killers_spearmace",
   "version": "${version}",
   "name": "Killer's SpearMace Optimization",
-  "description": "Standalone client utilities with customizable Block ESP, entity tracers, and flight settings.",
+  "description": "A SpearMace optimization mod that helps you get better at spear mace.",
   "authors": [
     "esoria"
   ],

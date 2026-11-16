@@ -9,7 +9,9 @@ import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.client.renderer.ShapeRenderer;
+import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -64,14 +66,14 @@ public final class SpearMaceClient implements ClientModInitializer {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null || (!blockEspEnabled && !tracerEnabled)) return;
         var camera = mc.gameRenderer.getMainCamera();
-        Vec3 eye = camera.getPosition();
+        Vec3 eye = camera.position();
         var pose = new com.mojang.blaze3d.vertex.PoseStack();
         var buffers = mc.renderBuffers().bufferSource();
-        VertexConsumer lines = buffers.getBuffer(RenderType.lines());
+        VertexConsumer lines = buffers.getBuffer(RenderTypes.lines());
         pose.pushPose();
         pose.translate(-eye.x, -eye.y, -eye.z);
         if (blockEspEnabled) for (BlockPos p : FOUND)
-            LevelRenderer.renderLineBox(pose, lines, new AABB(p), 0.65f, 0.22f, 1.0f, 1f);
+            ShapeRenderer.renderShape(pose, lines, Shapes.block(), p.getX(), p.getY(), p.getZ(), 0xAA55FFFF, 1.0f);
         if (tracerEnabled) for (Entity e : mc.level.entitiesForRendering()) {
             if (e == mc.player || e.isRemoved() || !ENTITIES.contains(e.getType())) continue;
             Vec3 target = e.position().add(0, e.getBbHeight() * 0.5, 0);
@@ -81,7 +83,7 @@ public final class SpearMaceClient implements ClientModInitializer {
             lines.addVertex(m, (float)target.x, (float)target.y, (float)target.z).setColor(0.35f, 1f, 0.8f, 1f).setNormal(0, 1, 0);
         }
         pose.popPose();
-        buffers.endBatch(RenderType.lines());
+        buffers.endBatch(RenderTypes.lines());
     }
 
     private static void moveFlight(Minecraft mc) {

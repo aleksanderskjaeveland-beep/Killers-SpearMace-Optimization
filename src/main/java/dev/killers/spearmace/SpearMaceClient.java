@@ -12,7 +12,6 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.ShapeRenderer;
 import net.minecraft.world.phys.shapes.Shapes;
-import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
@@ -28,11 +27,16 @@ public final class SpearMaceClient implements ClientModInitializer {
     public static boolean tracerEnabled = false;
     public static boolean flightEnabled = false;
     public static double flySpeed = 1.0;
-    public static double verticalSpeed = 0.65;
+    public static final double VERTICAL_SPEED = 0.42;
+    public static int flightToggleKey = InputConstants.KEY_G;
+    private static boolean flightKeyPreviouslyDown = false;
     public static final Set<Block> BLOCKS = new LinkedHashSet<>();
     public static final Set<EntityType<?>> ENTITIES = new LinkedHashSet<>();
     private static final List<BlockPos> FOUND = new ArrayList<>();
     private static int scanTick = 0;
+    private static final List<AABB> ENTITY_BOXES = new ArrayList<>();
+    private static final List<Vec3> ENTITY_TARGETS = new ArrayList<>();
+    private static Vec3 PLAYER_EYE = Vec3.ZERO;
     private static final KeyMapping.Category CATEGORY = KeyMapping.Category.register(
         Identifier.fromNamespaceAndPath("killers_spearmace", "main"));
 
@@ -43,10 +47,15 @@ public final class SpearMaceClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (menuKey.consumeClick()) if (client.player != null && client.screen == null)
                 client.setScreen(new SpearMaceScreen());
-            if (++scanTick % 30 == 0) scanBlocks(client);
+            if (++scanTick % 12 == 0) scanBlocks(client);
+            scanEntities(client);
+            boolean keyDown = client.screen == null && client.player != null &&
+                InputConstants.isKeyDown(client.getWindow(), flightToggleKey);
+            if (keyDown && !flightKeyPreviouslyDown) flightEnabled = !flightEnabled;
+            flightKeyPreviouslyDown = keyDown;
             moveFlight(client);
         });
-        WorldRenderEvents.BEFORE_DEBUG_RENDER.register(ctx -> renderWorld());
+        WorldRenderEvents.AFTER_ENTITIES.register(SpearMaceClient::renderWorld);
     }
 
     private static void scanBlocks(Minecraft mc) {
@@ -62,28 +71,46 @@ public final class SpearMaceClient implements ClientModInitializer {
             }
     }
 
-    private static void renderWorld() {
+    private static void scanEntities(Minecraft mc) {
+        ENTITY_BOXES.clear();
+        ENTITY_TARGETS.clear();
+        if (mc.level == null || mc.player == null || !tracerEnabled || ENTITIES.isEmpty()) return;
+        PLAYER_EYE = mc.player.getEyePosition();
+        for (Entity e : mc.level.entitiesForRendering()) {
+            if (e == mc.player || e.isRemoved() || !ENTITIES.contains(e.getType())) continue;
+            if (e.distanceToSqr(mc.player) > 128 * 128) continue;
+            AABB box = e.getBoundingBox().inflate(0.06);
+            ENTITY_BOXES.add(box);
+            ENTITY_TARGETS.add(box.getCenter());
+        }
+    }
+
+    private static void renderWorld(net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext ctx) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null || (!blockEspEnabled && !tracerEnabled)) return;
-        var camera = mc.gameRenderer.getMainCamera();
-        Vec3 eye = camera.position();
-        var pose = new com.mojang.blaze3d.vertex.PoseStack();
-        var buffers = mc.renderBuffers().bufferSource();
-        VertexConsumer lines = buffers.getBuffer(RenderTypes.lines());
+        Vec3 camera = mc.gameRenderer.getMainCamera().position();
+        var pose = ctx.matrices();
+        var lines = ctx.consumers().getBuffer(RenderTypes.lines());
         pose.pushPose();
-        pose.translate(-eye.x, -eye.y, -eye.z);
-        if (blockEspEnabled) for (BlockPos p : FOUND)
-            ShapeRenderer.renderShape(pose, lines, Shapes.block(), p.getX(), p.getY(), p.getZ(), 0xAA55FFFF, 1.0f);
-        if (tracerEnabled) for (Entity e : mc.level.entitiesForRendering()) {
-            if (e == mc.player || e.isRemoved() || !ENTITIES.contains(e.getType())) continue;
-            Vec3 target = e.position().add(0, e.getBbHeight() * 0.5, 0);
-            Vec3 from = mc.player.getEyePosition();
-            var m = pose.last().pose();
-            lines.addVertex(m, (float)from.x, (float)from.y, (float)from.z).setColor(0.35f, 1f, 0.8f, 1f).setNormal(0, 1, 0);
-            lines.addVertex(m, (float)target.x, (float)target.y, (float)target.z).setColor(0.35f, 1f, 0.8f, 1f).setNormal(0, 1, 0);
+        pose.translate(-camera.x, -camera.y, -camera.z);
+        if (blockEspEnabled) for (BlockPos p : FOUND) {
+            ShapeRenderer.renderShape(pose, lines, Shapes.block(),
+                p.getX(), p.getY(), p.getZ(), 0xFF55AAFF, 1.0f);
+        }
+        if (tracerEnabled) {
+            for (AABB box : ENTITY_BOXES)
+                ShapeRenderer.renderShape(pose, lines, Shapes.create(box),
+                    0, 0, 0, 0xFF55FF99, 1.0f);
+            var matrix = pose.last().pose();
+            for (Vec3 target : ENTITY_TARGETS) {
+                lines.addVertex(matrix, (float)PLAYER_EYE.x, (float)PLAYER_EYE.y, (float)PLAYER_EYE.z)
+                    .setColor(0.3f, 1f, 0.65f, 1f).setNormal(0, 1, 0);
+                lines.addVertex(matrix, (float)target.x, (float)target.y, (float)target.z)
+                    .setColor(0.3f, 1f, 0.65f, 1f).setNormal(0, 1, 0);
+            }
         }
         pose.popPose();
-        buffers.endBatch(RenderTypes.lines());
+        // The world renderer flushes the supplied buffer at the correct time.
     }
 
     private static void moveFlight(Minecraft mc) {
@@ -96,8 +123,8 @@ public final class SpearMaceClient implements ClientModInitializer {
         Vec3 wanted = forward.scale(fwd).add(sideways.scale(side));
         if (wanted.lengthSqr() > 1) wanted = wanted.normalize();
         wanted = wanted.scale(flySpeed * 0.24);
-        double vy = (mc.options.keyJump.isDown() ? verticalSpeed : 0)
-                  - (mc.options.keyShift.isDown() ? verticalSpeed : 0);
+        double vy = (mc.options.keyJump.isDown() ? VERTICAL_SPEED : 0)
+                  - (mc.options.keyShift.isDown() ? VERTICAL_SPEED : 0);
         Vec3 old = p.getDeltaMovement();
         double smoothing = 0.23;
         p.setDeltaMovement(

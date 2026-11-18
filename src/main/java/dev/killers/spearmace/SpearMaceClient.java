@@ -1,19 +1,15 @@
 package dev.killers.spearmace;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.client.renderer.rendertype.RenderTypes;
-import net.minecraft.client.renderer.ShapeRenderer;
-import net.minecraft.world.phys.shapes.Shapes;
+import net.minecraft.gizmos.Gizmos;
+import net.minecraft.gizmos.GizmoStyle;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -34,9 +30,6 @@ public final class SpearMaceClient implements ClientModInitializer {
     public static final Set<EntityType<?>> ENTITIES = new LinkedHashSet<>();
     private static final List<BlockPos> FOUND = new ArrayList<>();
     private static int scanTick = 0;
-    private static final List<AABB> ENTITY_BOXES = new ArrayList<>();
-    private static final List<Vec3> ENTITY_TARGETS = new ArrayList<>();
-    private static Vec3 PLAYER_EYE = Vec3.ZERO;
     private static final KeyMapping.Category CATEGORY = KeyMapping.Category.register(
         Identifier.fromNamespaceAndPath("killers_spearmace", "main"));
 
@@ -48,14 +41,13 @@ public final class SpearMaceClient implements ClientModInitializer {
             while (menuKey.consumeClick()) if (client.player != null && client.screen == null)
                 client.setScreen(new SpearMaceScreen());
             if (++scanTick % 12 == 0) scanBlocks(client);
-            scanEntities(client);
+            emitEspGizmos(client);
             boolean keyDown = client.screen == null && client.player != null &&
                 InputConstants.isKeyDown(client.getWindow(), flightToggleKey);
             if (keyDown && !flightKeyPreviouslyDown) flightEnabled = !flightEnabled;
             flightKeyPreviouslyDown = keyDown;
             moveFlight(client);
         });
-        WorldRenderEvents.AFTER_ENTITIES.register(SpearMaceClient::renderWorld);
     }
 
     private static void scanBlocks(Minecraft mc) {
@@ -71,46 +63,41 @@ public final class SpearMaceClient implements ClientModInitializer {
             }
     }
 
-    private static void scanEntities(Minecraft mc) {
-        ENTITY_BOXES.clear();
-        ENTITY_TARGETS.clear();
-        if (mc.level == null || mc.player == null || !tracerEnabled || ENTITIES.isEmpty()) return;
-        PLAYER_EYE = mc.player.getEyePosition();
-        for (Entity e : mc.level.entitiesForRendering()) {
-            if (e == mc.player || e.isRemoved() || !ENTITIES.contains(e.getType())) continue;
-            if (e.distanceToSqr(mc.player) > 128 * 128) continue;
-            AABB box = e.getBoundingBox().inflate(0.06);
-            ENTITY_BOXES.add(box);
-            ENTITY_TARGETS.add(box.getCenter());
-        }
-    }
+    /**
+     * Minecraft 1.21.11 separates render extraction from drawing. Its Gizmos API
+     * queues debug shapes safely for the next frame. Never append vertices to
+     * the world renderer's buffers from an AFTER_ENTITIES drawing event.
+     */
+    private static void emitEspGizmos(Minecraft mc) {
+        if (mc.level == null || mc.player == null) return;
+        if ((!blockEspEnabled || BLOCKS.isEmpty()) && (!tracerEnabled || ENTITIES.isEmpty())) return;
 
-    private static void renderWorld(net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext ctx) {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null || mc.player == null || (!blockEspEnabled && !tracerEnabled)) return;
-        Vec3 camera = mc.gameRenderer.getMainCamera().position();
-        var pose = ctx.matrices();
-        var lines = ctx.consumers().getBuffer(RenderTypes.lines());
-        pose.pushPose();
-        pose.translate(-camera.x, -camera.y, -camera.z);
-        if (blockEspEnabled) for (BlockPos p : FOUND) {
-            ShapeRenderer.renderShape(pose, lines, Shapes.block(),
-                p.getX(), p.getY(), p.getZ(), 0xFF55AAFF, 1.0f);
-        }
-        if (tracerEnabled) {
-            for (AABB box : ENTITY_BOXES)
-                ShapeRenderer.renderShape(pose, lines, Shapes.create(box),
-                    0, 0, 0, 0xFF55FF99, 1.0f);
-            var matrix = pose.last().pose();
-            for (Vec3 target : ENTITY_TARGETS) {
-                lines.addVertex(matrix, (float)PLAYER_EYE.x, (float)PLAYER_EYE.y, (float)PLAYER_EYE.z)
-                    .setColor(0.3f, 1f, 0.65f, 1f).setNormal(0, 1, 0);
-                lines.addVertex(matrix, (float)target.x, (float)target.y, (float)target.z)
-                    .setColor(0.3f, 1f, 0.65f, 1f).setNormal(0, 1, 0);
+        try (var scope = mc.collectPerTickGizmos()) {
+            if (blockEspEnabled && !BLOCKS.isEmpty()) {
+                int count = 0;
+                for (BlockPos pos : FOUND) {
+                    if (count++ >= 192) break; // keep very common blocks from stalling the game
+                    Gizmos.cuboid(new AABB(pos).inflate(0.005), GizmoStyle.stroke(0xFF55AAFF, 1.5f))
+                        .setAlwaysOnTop();
+                }
+            }
+
+            if (tracerEnabled && !ENTITIES.isEmpty()) {
+                Vec3 eye = mc.player.getEyePosition();
+                int count = 0;
+                for (Entity entity : mc.level.entitiesForRendering()) {
+                    if (entity == mc.player || entity.isRemoved()
+                            || !ENTITIES.contains(entity.getType())
+                            || entity.distanceToSqr(mc.player) > 128.0 * 128.0) continue;
+                    if (count++ >= 96) break;
+                    AABB box = entity.getBoundingBox().inflate(0.04);
+                    Gizmos.cuboid(box, GizmoStyle.stroke(0xFF55FF99, 1.5f))
+                        .setAlwaysOnTop();
+                    Gizmos.line(eye, box.getCenter(), 0xFF55FF99, 1.5f)
+                        .setAlwaysOnTop();
+                }
             }
         }
-        pose.popPose();
-        // The world renderer flushes the supplied buffer at the correct time.
     }
 
     private static void moveFlight(Minecraft mc) {
